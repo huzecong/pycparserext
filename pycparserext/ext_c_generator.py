@@ -39,7 +39,7 @@ class AsmAndAttributesMixin(object):
                 " : ".join(
                     self.visit(c) for c in components))
 
-    def _generate_type(self, n, modifiers=[]):
+    def _generate_type(self, n, modifiers=[], emit_declname=True):
         """ Recursive generation from a type node. n is the type node.
             modifiers collects the PtrDecl, ArrayDecl and FuncDecl modifiers
             encountered on the way down to a TypeDecl, to allow proper
@@ -54,7 +54,7 @@ class AsmAndAttributesMixin(object):
                 s += ' '.join(n.quals) + ' '
             s += self.visit(n.type)
 
-            nstr = n.declname if n.declname else ''
+            nstr = n.declname if n.declname and emit_declname else ''
             # Resolve modifiers.
             # Wrap in parens to distinguish pointer to array and pointer to
             # function syntax.
@@ -63,7 +63,10 @@ class AsmAndAttributesMixin(object):
                 if isinstance(modifier, c_ast.ArrayDecl):
                     if (i != 0 and isinstance(modifiers[i - 1], c_ast.PtrDecl)):
                         nstr = '(' + nstr + ')'
-                    nstr += '[' + self.visit(modifier.dim) + ']'
+                    nstr += '['
+                    if modifier.dim_quals:
+                        self.visit(modifier.dim)
+                    nstr += ']'
                 elif isinstance(modifier, c_ast.FuncDecl):
                     if (i != 0 and isinstance(modifiers[i - 1], c_ast.PtrDecl)):
                         nstr = '(' + nstr + ')'
@@ -98,11 +101,12 @@ class AsmAndAttributesMixin(object):
         elif typ == c_ast.Decl:
             return self._generate_decl(n.type)
         elif typ == c_ast.Typename:
-            return self._generate_type(n.type)
+            return self._generate_type(n.type, emit_declname=emit_declname)
         elif typ == c_ast.IdentifierType:
             return ' '.join(n.names) + ' '
         elif typ in (c_ast.ArrayDecl, c_ast.PtrDecl, c_ast.FuncDecl, FuncDeclExt):
-            return self._generate_type(n.type, modifiers + [n])
+            return self._generate_type(n.type, modifiers + [n],
+                                       emit_declname=emit_declname)
         else:
             return self.visit(n)
 
